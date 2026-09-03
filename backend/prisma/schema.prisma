@@ -1,0 +1,91 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/// A registered user of the app.
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  name         String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  ownedBoards Board[]       @relation("BoardOwner")
+  memberships BoardMember[]
+
+  @@map("users")
+}
+
+/// A kanban board. Has exactly one owner; can be shared with other users
+/// through BoardMember rows.
+model Board {
+  id        String   @id @default(cuid())
+  title     String
+  ownerId   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  owner   User          @relation("BoardOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  members BoardMember[]
+  columns Column[]
+
+  @@index([ownerId])
+  @@map("boards")
+}
+
+/// Grants a non-owner user access to a board (the "sharing" relationship).
+/// Access-control checks look for: user is board.owner OR a BoardMember row
+/// exists for (boardId, userId).
+model BoardMember {
+  id        String   @id @default(cuid())
+  boardId   String
+  userId    String
+  createdAt DateTime @default(now())
+
+  board Board @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([boardId, userId])
+  @@index([userId])
+  @@map("board_members")
+}
+
+/// A workflow column inside a board (e.g. "To Do", "In Progress", "Done").
+/// `position` is a float so a task/column can be inserted between two
+/// existing ones without renumbering the whole list (fractional indexing).
+model Column {
+  id        String   @id @default(cuid())
+  boardId   String
+  title     String
+  position  Float
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  board Board  @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  tasks Task[]
+
+  @@index([boardId, position])
+  @@map("columns")
+}
+
+/// A single task card living inside a column.
+model Task {
+  id          String   @id @default(cuid())
+  columnId    String
+  title       String
+  description String?
+  position    Float
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  column Column @relation(fields: [columnId], references: [id], onDelete: Cascade)
+
+  @@index([columnId, position])
+  @@map("tasks")
+}
