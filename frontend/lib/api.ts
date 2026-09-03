@@ -12,6 +12,35 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * Pulls a human-readable reason out of a Nest error body.
+ *
+ * Nest sends `message` two different ways: a plain string for errors we throw
+ * ourselves (`Invalid email or password`), and a string ARRAY for anything
+ * ValidationPipe rejects (`["Password must be at least 6 characters"]`). Only
+ * handling the string case meant every field-validation failure in the app
+ * surfaced as a bare status code, throwing away the exact reason the API had
+ * already worked out.
+ */
+function errorMessage(body: unknown, status: number): string {
+  const raw = (body as { message?: unknown } | null)?.message;
+
+  if (Array.isArray(raw)) {
+    const parts = raw.filter((m): m is string => typeof m === 'string' && m.trim() !== '');
+    if (parts.length > 0) {
+      // Sentence-case the join so "email must be an email, password should not
+      // be empty" reads as one message rather than a debug dump.
+      return parts.join('. ').replace(/\.?$/, '.');
+    }
+  }
+
+  if (typeof raw === 'string' && raw.trim() !== '') {
+    return raw;
+  }
+
+  return `Request failed (${status})`;
+}
+
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token = getToken();
   const res = await fetch(`${API_URL}${path}`, {
@@ -25,8 +54,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    const message = typeof body.message === 'string' ? body.message : `Request failed (${res.status})`;
-    throw new ApiError(res.status, message);
+    throw new ApiError(res.status, errorMessage(body, res.status));
   }
 
   if (res.status === 204) {
