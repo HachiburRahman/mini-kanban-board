@@ -40,5 +40,6 @@ export interface BoardSummary {
 
 export interface BoardDetail extends BoardSummary {
   columns: Column[];
+  owner: AuthUser;
   members: BoardMember[];
 }

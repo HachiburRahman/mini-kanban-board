@@ -8,7 +8,10 @@ import { JwtStrategy } from './strategies/jwt.strategy.js';
 
 @Module({
   imports: [
-    PassportModule,
+    // Must be .register(...), not the bare class: bare PassportModule is
+    // @Module({}) and provides nothing, so AuthModuleOptions would never
+    // exist and JwtAuthGuard could not be constructed in any module.
+    PassportModule.register({ defaultStrategy: 'jwt' }),
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],

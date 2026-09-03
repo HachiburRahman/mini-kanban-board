@@ -34,6 +34,7 @@ export class BoardsService {
           orderBy: { position: 'asc' },
           include: { tasks: { orderBy: { position: 'asc' } } },
         },
+        owner: { select: { id: true, email: true, name: true } },
         members: {
           include: { user: { select: { id: true, email: true, name: true } } },
         },
@@ -72,14 +73,23 @@ export class BoardsService {
 
     return this.prisma.boardMember.create({
       data: { boardId, userId: targetUser.id },
+      include: { user: { select: { id: true, email: true, name: true } } },
     });
   }
 
   async removeMember(userId: string, boardId: string, memberUserId: string) {
     await this.access.assertOwner(userId, boardId);
-    await this.prisma.boardMember.delete({
+
+    // Deleting a membership row that isn't there would surface as a raw
+    // Prisma P2025 (a 500). Check first so it comes back as a clean 404.
+    const membership = await this.prisma.boardMember.findUnique({
       where: { boardId_userId: { boardId, userId: memberUserId } },
     });
+    if (!membership) {
+      throw new NotFoundException('That user is not a member of this board');
+    }
+
+    await this.prisma.boardMember.delete({ where: { id: membership.id } });
     return { success: true };
   }
 }

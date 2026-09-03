@@ -1,5 +1,5 @@
 import { getToken } from './auth';
-import type { AuthResponse, BoardDetail, BoardSummary, Column, Task } from './types';
+import type { AuthResponse, BoardDetail, BoardMember, BoardSummary, Column, Task } from './types';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
 
@@ -51,7 +51,13 @@ export const api = {
   getBoard: (id: string) => request<BoardDetail>(`/boards/${id}`),
 
   shareBoard: (id: string, email: string) =>
-    request(`/boards/${id}/share`, { method: 'POST', body: JSON.stringify({ email }) }),
+    request<BoardMember>(`/boards/${id}/share`, {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    }),
+
+  removeBoardMember: (id: string, userId: string) =>
+    request<{ success: boolean }>(`/boards/${id}/members/${userId}`, { method: 'DELETE' }),
 
   createColumn: (boardId: string, title: string) =>
     request<Column>(`/boards/${boardId}/columns`, { method: 'POST', body: JSON.stringify({ title }) }),

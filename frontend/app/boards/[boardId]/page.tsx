@@ -12,12 +12,14 @@ import {
   type DragStartEvent,
 } from '@dnd-kit/core';
 import { arrayMove } from '@dnd-kit/sortable';
+import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { type FormEvent, useEffect, useState } from 'react';
 import { api, ApiError } from '@/lib/api';
-import { clearSession, getToken } from '@/lib/auth';
-import type { BoardDetail, Column, Task } from '@/lib/types';
+import { clearSession, getStoredUser, getToken } from '@/lib/auth';
+import type { AuthUser, BoardDetail, BoardMember, Column, Task } from '@/lib/types';
 import { ColumnContainer } from '@/components/ColumnContainer';
+import { SharePanel } from '@/components/SharePanel';
 import { TaskCard } from '@/components/TaskCard';
 
 /** Finds the column that currently holds a given task, in local state. */
@@ -32,6 +34,7 @@ export default function BoardPage() {
   const [error, setError] = useState<string | null>(null);
   const [newColumnTitle, setNewColumnTitle] = useState('');
   const [activeTask, setActiveTask] = useState<Task | null>(null);
+  const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
@@ -40,6 +43,7 @@ export default function BoardPage() {
       router.replace('/login');
       return;
     }
+    setCurrentUser(getStoredUser<AuthUser>());
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params.boardId]);
@@ -145,12 +149,27 @@ export default function BoardPage() {
     });
   }
 
+  function onMembersChanged(members: BoardMember[]) {
+    setBoard((prev) => (prev ? { ...prev, members } : prev));
+  }
+
   if (error) return <p className="p-8 text-sm text-red-600">{error}</p>;
   if (!board) return <p className="p-8 text-sm text-slate-500">Loading…</p>;
 
   return (
     <main className="min-h-screen bg-slate-50 px-6 py-8">
-      <h1 className="mb-6 text-2xl font-semibold">{board.title}</h1>
+      <div className="mb-6 flex items-center justify-between">
+        <h1 className="text-2xl font-semibold">{board.title}</h1>
+        <Link href="/boards" className="text-sm text-slate-500 underline">
+          All boards
+        </Link>
+      </div>
+
+      <SharePanel
+        board={board}
+        isOwner={currentUser?.id === board.ownerId}
+        onMembersChanged={onMembersChanged}
+      />
 
       <DndContext
         sensors={sensors}
