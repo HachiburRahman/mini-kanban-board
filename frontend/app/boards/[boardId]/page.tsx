@@ -4,20 +4,22 @@ import {
   closestCorners,
   DndContext,
   DragOverlay,
+  KeyboardSensor,
   PointerSensor,
+  TouchSensor,
   useSensor,
   useSensors,
   type DragEndEvent,
   type DragOverEvent,
   type DragStartEvent,
 } from '@dnd-kit/core';
-import { arrayMove } from '@dnd-kit/sortable';
-import Link from 'next/link';
+import { arrayMove, sortableKeyboardCoordinates } from '@dnd-kit/sortable';
 import { useParams, useRouter } from 'next/navigation';
 import { type FormEvent, useEffect, useState } from 'react';
 import { api, ApiError } from '@/lib/api';
 import { clearSession, getStoredUser, getToken } from '@/lib/auth';
 import type { AuthUser, BoardDetail, BoardMember, Column, Task } from '@/lib/types';
+import { AppHeader } from '@/components/AppHeader';
 import { ColumnContainer } from '@/components/ColumnContainer';
 import { SharePanel } from '@/components/SharePanel';
 import { TaskCard } from '@/components/TaskCard';
@@ -33,10 +35,17 @@ export default function BoardPage() {
   const [board, setBoard] = useState<BoardDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [newColumnTitle, setNewColumnTitle] = useState('');
+  const [addingColumn, setAddingColumn] = useState(false);
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
 
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    // Touch needs a press-and-hold before a drag begins, otherwise every
+    // attempt to scroll the board vertically would pick up a card instead.
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 6 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
 
   useEffect(() => {
     if (!getToken()) {
@@ -58,15 +67,14 @@ export default function BoardPage() {
         router.replace('/login');
         return;
       }
-      setError('Could not load this board (maybe you no longer have access to it)');
+      setError('This board is not available. It may have been deleted, or your access removed.');
     }
   }
 
   function handleDragStart(event: DragStartEvent) {
     if (!board) return;
     const column = findColumnOfTask(board.columns, String(event.active.id));
-    const task = column?.tasks.find((t) => t.id === event.active.id);
-    setActiveTask(task ?? null);
+    setActiveTask(column?.tasks.find((t) => t.id === event.active.id) ?? null);
   }
 
   // Cross-column drag: as the card passes over a different column, move it
@@ -78,7 +86,8 @@ export default function BoardPage() {
 
     const activeColumn = findColumnOfTask(board.columns, String(active.id));
     const overColumn =
-      board.columns.find((c) => c.id === over.id) ?? findColumnOfTask(board.columns, String(over.id));
+      board.columns.find((c) => c.id === over.id) ??
+      findColumnOfTask(board.columns, String(over.id));
     if (!activeColumn || !overColumn || activeColumn.id === overColumn.id) return;
 
     setBoard((prev) => {
@@ -116,7 +125,12 @@ export default function BoardPage() {
       finalIndex = overIndex;
       setBoard((prev) =>
         prev
-          ? { ...prev, columns: prev.columns.map((c) => (c.id === column.id ? { ...c, tasks: reordered } : c)) }
+          ? {
+              ...prev,
+              columns: prev.columns.map((c) =>
+                c.id === column.id ? { ...c, tasks: reordered } : c,
+              ),
+            }
           : prev,
       );
     }
@@ -132,69 +146,158 @@ export default function BoardPage() {
 
   async function onAddColumn(e: FormEvent) {
     e.preventDefault();
-    if (!newColumnTitle.trim() || !board) return;
-    const column = await api.createColumn(board.id, newColumnTitle);
+    const title = newColumnTitle.trim();
+    if (!title || !board) return;
+    const column = await api.createColumn(board.id, title);
     setNewColumnTitle('');
-    setBoard((prev) => (prev ? { ...prev, columns: [...prev.columns, { ...column, tasks: [] }] } : prev));
+    setAddingColumn(false);
+    setBoard((prev) =>
+      prev ? { ...prev, columns: [...prev.columns, { ...column, tasks: [] }] } : prev,
+    );
   }
 
   async function onAddTask(columnId: string, title: string) {
     const task = await api.createTask(columnId, title);
-    setBoard((prev) => {
-      if (!prev) return prev;
-      return {
-        ...prev,
-        columns: prev.columns.map((c) => (c.id === columnId ? { ...c, tasks: [...c.tasks, task] } : c)),
-      };
-    });
+    setBoard((prev) =>
+      prev
+        ? {
+            ...prev,
+            columns: prev.columns.map((c) =>
+              c.id === columnId ? { ...c, tasks: [...c.tasks, task] } : c,
+            ),
+          }
+        : prev,
+    );
   }
 
   function onMembersChanged(members: BoardMember[]) {
     setBoard((prev) => (prev ? { ...prev, members } : prev));
   }
 
-  if (error) return <p className="p-8 text-sm text-red-600">{error}</p>;
-  if (!board) return <p className="p-8 text-sm text-slate-500">Loading…</p>;
+  if (error) {
+    return (
+      <>
+        <AppHeader />
+        <main className="mx-auto max-w-md px-4 py-20 text-center">
+          <h1 className="font-display text-xl font-bold">Board unavailable</h1>
+          <p className="mt-2 text-ink-soft">{error}</p>
+          <a href="/boards" className="btn btn-secondary mt-6">
+            Back to your boards
+          </a>
+        </main>
+      </>
+    );
+  }
+
+  if (!board) {
+    return (
+      <>
+        <AppHeader />
+        <main className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
+          <div className="h-9 w-52 animate-pulse rounded-md bg-sunken" />
+          <div className="mt-8 flex gap-4">
+            {[0, 1, 2].map((i) => (
+              <div key={i} className="h-64 w-[19rem] flex-none animate-pulse rounded-xl bg-sunken" />
+            ))}
+          </div>
+        </main>
+      </>
+    );
+  }
 
   return (
-    <main className="min-h-screen bg-slate-50 px-6 py-8">
-      <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">{board.title}</h1>
-        <Link href="/boards" className="text-sm text-slate-500 underline">
-          All boards
-        </Link>
-      </div>
+    <>
+      <AppHeader crumb={board.title} />
 
-      <SharePanel
-        board={board}
-        isOwner={currentUser?.id === board.ownerId}
-        onMembersChanged={onMembersChanged}
-      />
-
-      <DndContext
-        sensors={sensors}
-        collisionDetection={closestCorners}
-        onDragStart={handleDragStart}
-        onDragOver={handleDragOver}
-        onDragEnd={handleDragEnd}
-      >
-        <div className="flex gap-4 overflow-x-auto pb-4">
-          {board.columns.map((column) => (
-            <ColumnContainer key={column.id} column={column} onAddTask={onAddTask} />
-          ))}
-
-          <form onSubmit={onAddColumn} className="w-72 flex-none">
-            <input
-              value={newColumnTitle}
-              onChange={(e) => setNewColumnTitle(e.target.value)}
-              placeholder="+ Add column"
-              className="w-full rounded-lg border border-dashed border-slate-300 bg-transparent px-3 py-2 text-sm"
+      <main>
+        <div className="mx-auto flex w-full max-w-7xl flex-wrap items-center gap-3 px-4 pt-7 pb-5 sm:px-6">
+          <h1 className="font-display text-[1.75rem] font-bold sm:text-[2.125rem]">{board.title}</h1>
+          <div className="ml-auto flex items-center gap-2">
+            <SharePanel
+              board={board}
+              isOwner={currentUser?.id === board.ownerId}
+              onMembersChanged={onMembersChanged}
             />
-          </form>
+          </div>
         </div>
 
-        <DragOverlay>{activeTask ? <TaskCard task={activeTask} /> : null}</DragOverlay>
-      </DndContext>
-    </main>
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCorners}
+          onDragStart={handleDragStart}
+          onDragOver={handleDragOver}
+          onDragEnd={handleDragEnd}
+        >
+          {/* The scroller is constrained to the same container as the page
+              header, so lanes line up with the board title instead of
+              floating centred once they stop filling the width. */}
+          <div className="lane-scroll mx-auto w-full max-w-7xl snap-x snap-mandatory overflow-x-auto px-4 pb-6 sm:snap-none sm:px-6">
+            <div className="flex w-max items-start gap-4">
+              {board.columns.map((column, i) => (
+                <ColumnContainer
+                  key={column.id}
+                  column={column}
+                  index={i}
+                  onAddTask={onAddTask}
+                />
+              ))}
+
+              <div className="w-[85vw] max-w-[20rem] flex-none snap-start sm:w-[19rem]">
+                {addingColumn ? (
+                  <form
+                    onSubmit={onAddColumn}
+                    className="rounded-xl border border-accent bg-surface p-2.5"
+                  >
+                    <label htmlFor="new-column" className="sr-only">
+                      New column name
+                    </label>
+                    <input
+                      id="new-column"
+                      autoFocus
+                      className="input"
+                      placeholder="In review"
+                      value={newColumnTitle}
+                      onChange={(e) => setNewColumnTitle(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Escape' && setAddingColumn(false)}
+                    />
+                    <div className="mt-2 flex items-center gap-2">
+                      <button
+                        type="submit"
+                        disabled={!newColumnTitle.trim()}
+                        className="btn btn-primary btn-sm"
+                      >
+                        Add column
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setAddingColumn(false)}
+                        className="btn btn-ghost btn-sm"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </form>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setAddingColumn(true)}
+                    className="btn btn-ghost w-full justify-start rounded-xl border border-dashed border-line-strong"
+                  >
+                    <span aria-hidden="true" className="text-lg leading-none">
+                      +
+                    </span>
+                    Add column
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <DragOverlay dropAnimation={{ duration: 180, easing: 'cubic-bezier(0.2, 0, 0, 1)' }}>
+            {activeTask ? <TaskCard task={activeTask} overlay /> : null}
+          </DragOverlay>
+        </DndContext>
+      </main>
+    </>
   );
 }

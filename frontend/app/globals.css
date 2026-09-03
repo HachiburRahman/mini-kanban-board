@@ -1,11 +1,241 @@
 @import "tailwindcss";
 
+/* ------------------------------------------------------------------
+   Design tokens.
+
+   Warm neutral canvas + a single teal accent. Deliberately not the
+   blue/indigo default: the accent is used only for primary actions and
+   focus, so anything teal on screen is something you can act on.
+   ------------------------------------------------------------------ */
+@theme {
+  --font-sans: var(--font-manrope), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-grotesk), var(--font-manrope), ui-sans-serif, sans-serif;
+
+  /* Surfaces: paper-warm rather than blue-grey */
+  --color-canvas: #f7f6f3;
+  --color-surface: #ffffff;
+  --color-sunken: #efeee9;
+
+  /* Text */
+  --color-ink: #17181a;
+  --color-ink-soft: #5c5f66;
+  --color-ink-faint: #8b8e96;
+
+  /* Hairlines */
+  --color-line: #e5e3dc;
+  --color-line-strong: #d4d1c7;
+
+  /* Accent + semantics */
+  --color-accent: #0f766e;
+  --color-accent-hover: #115e57;
+  --color-accent-tint: #edf7f5;
+  --color-danger: #b42318;
+  --color-danger-tint: #fef3f2;
+  --color-success: #067647;
+  --color-success-tint: #ecfdf3;
+
+  /* Column identity hues, cycled by index */
+  --color-lane-1: #0f766e;
+  --color-lane-2: #b45309;
+  --color-lane-3: #3b5bdb;
+  --color-lane-4: #a3335c;
+
+  --radius-sm: 0.375rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+
+  --shadow-card: 0 1px 2px rgb(23 24 26 / 0.05), 0 1px 1px rgb(23 24 26 / 0.03);
+  --shadow-raised: 0 12px 28px -8px rgb(23 24 26 / 0.22), 0 4px 10px -4px rgb(23 24 26 / 0.12);
+  --shadow-pop: 0 16px 40px -12px rgb(23 24 26 / 0.2), 0 4px 12px -6px rgb(23 24 26 / 0.1);
+}
+
+/* ------------------------------------------------------------------ */
+
 :root {
-  --background: #f8fafc;
-  --foreground: #0f172a;
+  color-scheme: light;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
+  background-color: var(--color-canvas);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  /* 16px floor: never ship body copy that forces a pinch-zoom on phones. */
+  font-size: 1rem;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--font-display);
+  letter-spacing: -0.018em;
+  line-height: 1.15;
+  text-wrap: balance;
+}
+
+/* One focus treatment everywhere, so keyboard users always see the same
+   affordance. Never remove this without replacing it. */
+:where(a, button, input, textarea, select, [tabindex]):focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+::selection {
+  background: var(--color-accent);
+  color: #fff;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ---------------------------- primitives ---------------------------- */
+
+@layer components {
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    /* 2.75rem = 44px, the minimum comfortable touch target. */
+    min-height: 2.75rem;
+    padding: 0 1rem;
+    border-radius: var(--radius-md);
+    font-size: 0.9375rem;
+    font-weight: 600;
+    white-space: nowrap;
+    cursor: pointer;
+    transition:
+      background-color 140ms ease-out,
+      border-color 140ms ease-out,
+      color 140ms ease-out,
+      transform 140ms ease-out;
+  }
+  .btn:active {
+    transform: translateY(0.5px);
+  }
+  .btn:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+    transform: none;
+  }
+
+  .btn-primary {
+    background-color: var(--color-accent);
+    color: #fff;
+  }
+  .btn-primary:hover:not(:disabled) {
+    background-color: var(--color-accent-hover);
+  }
+
+  .btn-secondary {
+    background-color: var(--color-surface);
+    color: var(--color-ink);
+    border: 1px solid var(--color-line-strong);
+  }
+  .btn-secondary:hover:not(:disabled) {
+    background-color: var(--color-sunken);
+  }
+
+  .btn-ghost {
+    background-color: transparent;
+    color: var(--color-ink-soft);
+  }
+  .btn-ghost:hover:not(:disabled) {
+    background-color: var(--color-sunken);
+    color: var(--color-ink);
+  }
+
+  .btn-sm {
+    min-height: 2.25rem;
+    padding: 0 0.75rem;
+    font-size: 0.875rem;
+  }
+
+  .input {
+    width: 100%;
+    min-height: 2.75rem;
+    padding: 0.5rem 0.75rem;
+    background-color: var(--color-surface);
+    border: 1px solid var(--color-line-strong);
+    border-radius: var(--radius-md);
+    /* 16px stops iOS Safari zooming the viewport on focus. */
+    font-size: 1rem;
+    color: var(--color-ink);
+    transition:
+      border-color 140ms ease-out,
+      box-shadow 140ms ease-out;
+  }
+  .input::placeholder {
+    color: var(--color-ink-faint);
+  }
+  .input:hover {
+    border-color: var(--color-ink-faint);
+  }
+  .input:focus {
+    outline: none;
+    border-color: var(--color-accent);
+    box-shadow: 0 0 0 3px var(--color-accent-tint);
+  }
+
+  .label {
+    display: block;
+    margin-bottom: 0.375rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--color-ink-soft);
+  }
+
+  .card {
+    background-color: var(--color-surface);
+    border: 1px solid var(--color-line);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-card);
+  }
+}
+
+/* Board columns scroll horizontally. Keep the scrollbar slim on desktop
+   and let it disappear entirely on touch, where the snap points lead. */
+.lane-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-line-strong) transparent;
+}
+.lane-scroll::-webkit-scrollbar {
+  height: 0.5rem;
+}
+.lane-scroll::-webkit-scrollbar-thumb {
+  background-color: var(--color-line-strong);
+  border-radius: 999px;
+}
+.lane-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+@keyframes fade-rise {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.animate-in {
+  animation: fade-rise 160ms ease-out;
 }
