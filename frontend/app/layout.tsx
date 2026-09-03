@@ -32,8 +32,19 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="en" className={`${manrope.variable} ${grotesk.variable}`}>
-      <body className="min-h-dvh bg-canvas text-ink">{children}</body>
+    // Extensions (Grammarly, ColorZilla, QuillBot) write attributes onto
+    // <html>/<body> before React hydrates, which reads as a hydration
+    // mismatch. suppressHydrationWarning applies one level deep, to these
+    // two elements' own attributes only, so real mismatches inside the app
+    // still surface normally.
+    <html
+      lang="en"
+      className={`${manrope.variable} ${grotesk.variable}`}
+      suppressHydrationWarning
+    >
+      <body className="min-h-dvh bg-canvas text-ink" suppressHydrationWarning>
+        {children}
+      </body>
     </html>
   );
 }
