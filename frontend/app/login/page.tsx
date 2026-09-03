@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { type FormEvent, useState } from 'react';
 import { api, ApiError } from '@/lib/api';
 import { saveSession } from '@/lib/auth';
+import { validateLogin } from '@/lib/validation';
 import { AuthShell } from '@/components/AuthShell';
 
 export default function LoginPage() {
@@ -16,6 +17,13 @@ export default function LoginPage() {
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
+
+    const invalid = validateLogin({ email, password });
+    if (invalid) {
+      setError(invalid);
+      return;
+    }
+
     setError(null);
     setLoading(true);
     try {

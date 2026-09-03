@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { type FormEvent, useState } from 'react';
 import { api, ApiError } from '@/lib/api';
 import { saveSession } from '@/lib/auth';
+import { validateRegister } from '@/lib/validation';
 import { AuthShell } from '@/components/AuthShell';
 
 export default function RegisterPage() {
@@ -17,6 +18,13 @@ export default function RegisterPage() {
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
+
+    const invalid = validateRegister({ name, email, password });
+    if (invalid) {
+      setError(invalid);
+      return;
+    }
+
     setError(null);
     setLoading(true);
     try {
