@@ -6,6 +6,21 @@ import { MoveTaskDto } from './dto/move-task.dto.js';
 
 const MAX_RETRIES = 3;
 
+/** Spacing used when a column is renumbered, and for the first task in one. */
+const POSITION_SPACING = 1024;
+
+/**
+ * Smallest gap we will split before renumbering the column instead.
+ *
+ * Fractional indexing halves the gap on every drop into the same slot, so
+ * `position` shrinks geometrically: dropping repeatedly at the top of a column
+ * took it from 1024 to ~7e-18 in 120 moves. Left alone it reaches 0 after
+ * roughly 1080 moves, and from then on `after / 2` is also 0 - cards tie and
+ * ordering silently stops working, with no error anywhere. Renumbering well
+ * before that keeps the gaps healthy.
+ */
+const MIN_GAP = 1e-4;
+
 /**
  * Handles the one endpoint that has to get concurrency right: moving a task
  * within a column (reorder) or into a different column at a specific index.
@@ -91,7 +106,7 @@ export class TaskMoveService {
 
     let position: number;
     if (before === null && after === null) {
-      position = 1024; // first task ever placed in this column
+      position = POSITION_SPACING; // first task ever placed in this column
     } else if (before === null) {
       position = after! / 2; // becomes the new first task
     } else if (after === null) {
@@ -100,9 +115,49 @@ export class TaskMoveService {
       position = (before + after) / 2; // slots in between two existing tasks
     }
 
+    // The gap we just split (or the headroom below the first card) has become
+    // too small to keep halving. Renumber the whole column onto fresh, evenly
+    // spaced positions instead - same visible order, healthy gaps again.
+    const gap = before !== null && after !== null ? after - before : (after ?? Infinity);
+    if (gap < MIN_GAP || !Number.isFinite(position) || position <= 0) {
+      return this.renumberColumn(tx, task.id, targetColumnId, siblings, index);
+    }
+
     return tx.task.update({
       where: { id: task.id },
       data: { columnId: targetColumnId, position },
+      include: { column: true },
+    });
+  }
+
+  /**
+   * Rewrites every position in the column to `POSITION_SPACING` multiples, with
+   * the moving task slotted in at `index`. Runs inside the same serializable
+   * transaction as the move, so a concurrent drag either sees the renumbered
+   * column or loses the write and retries - never a half-renumbered one.
+   */
+  private async renumberColumn(
+    tx: Prisma.TransactionClient,
+    taskId: string,
+    targetColumnId: string,
+    siblings: { id: string }[],
+    index: number,
+  ) {
+    const ordered = [...siblings.map((s) => s.id)];
+    ordered.splice(index, 0, taskId);
+
+    for (const [i, id] of ordered.entries()) {
+      const position = (i + 1) * POSITION_SPACING;
+      if (id === taskId) continue; // the moving row is updated last, below
+      await tx.task.update({ where: { id }, data: { position } });
+    }
+
+    return tx.task.update({
+      where: { id: taskId },
+      data: {
+        columnId: targetColumnId,
+        position: (ordered.indexOf(taskId) + 1) * POSITION_SPACING,
+      },
       include: { column: true },
     });
   }
