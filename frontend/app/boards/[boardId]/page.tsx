@@ -18,6 +18,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { type FormEvent, useEffect, useState } from 'react';
 import { api, ApiError } from '@/lib/api';
 import { clearSession, getStoredUser, getToken } from '@/lib/auth';
+import { createAnnouncements } from '@/lib/dnd-announcements';
 import type { AuthUser, BoardDetail, BoardMember, Column, Task } from '@/lib/types';
 import { AppHeader } from '@/components/AppHeader';
 import { ColumnContainer } from '@/components/ColumnContainer';
@@ -174,6 +175,8 @@ export default function BoardPage() {
     setBoard((prev) => (prev ? { ...prev, members } : prev));
   }
 
+  const announcements = createAnnouncements(board?.columns ?? []);
+
   if (error) {
     return (
       <>
@@ -222,6 +225,7 @@ export default function BoardPage() {
         </div>
 
         <DndContext
+          accessibility={{ announcements }}
           sensors={sensors}
           collisionDetection={closestCorners}
           onDragStart={handleDragStart}
