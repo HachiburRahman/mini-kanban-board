@@ -15,7 +15,7 @@ import {
 } from '@dnd-kit/core';
 import { arrayMove, sortableKeyboardCoordinates } from '@dnd-kit/sortable';
 import { useParams, useRouter } from 'next/navigation';
-import { type FormEvent, useEffect, useState } from 'react';
+import { type FormEvent, useEffect, useMemo, useState } from 'react';
 import { api, ApiError } from '@/lib/api';
 import { clearSession, getStoredUser, getToken } from '@/lib/auth';
 import { createAnnouncements } from '@/lib/dnd-announcements';
@@ -175,7 +175,13 @@ export default function BoardPage() {
     setBoard((prev) => (prev ? { ...prev, members } : prev));
   }
 
-  const announcements = createAnnouncements(board?.columns ?? []);
+  // Memoised so DndContext isn't handed a fresh accessibility object on every
+  // render. Precautionary rather than a fix for anything observed.
+  const columns = board?.columns;
+  const accessibility = useMemo(
+    () => ({ announcements: createAnnouncements(columns ?? []) }),
+    [columns],
+  );
 
   if (error) {
     return (
@@ -225,7 +231,7 @@ export default function BoardPage() {
         </div>
 
         <DndContext
-          accessibility={{ announcements }}
+          accessibility={accessibility}
           sensors={sensors}
           collisionDetection={closestCorners}
           onDragStart={handleDragStart}
