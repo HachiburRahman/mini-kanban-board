@@ -31,7 +31,14 @@ export function TaskCard({ task, overlay = false }: { task: Task; overlay?: bool
           : 'cursor-grab border-line shadow-[var(--shadow-card)] transition hover:border-line-strong hover:shadow-[var(--shadow-raised)] active:cursor-grabbing',
       ].join(' ')}
     >
-      <p className="text-[0.9375rem] leading-snug font-medium break-words">{task.title}</p>
+      {/* Clamped so an over-long title (or one stored before the API enforced
+          a limit) can't stretch the column and push "Add card" off screen. */}
+      <p
+        title={task.title}
+        className="line-clamp-4 text-[0.9375rem] leading-snug font-medium break-words"
+      >
+        {task.title}
+      </p>
       {task.description && (
         <p className="mt-1.5 line-clamp-2 text-sm text-ink-soft">{task.description}</p>
       )}
