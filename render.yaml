@@ -1,0 +1,30 @@
+# Render Blueprint for the backend API (free plan).
+#
+# The frontend is NOT here - it deploys to Vercel, which handles Next.js far
+# better than a generic Node host. See DEPLOYMENT.md for the full walkthrough.
+services:
+  - type: web
+    name: mini-kanban-api
+    runtime: node
+    plan: free
+    rootDir: backend
+    # Migrations run at build time, not on start: Render's free plan spins the
+    # container down when idle, and re-running `migrate deploy` on every
+    # wake-up would tack seconds onto an already slow cold start.
+    buildCommand: npm ci --legacy-peer-deps && npx prisma generate && npx prisma migrate deploy && npm run build
+    startCommand: node dist/main.js
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_VERSION
+        value: '22'
+      # Neon connection string - paste it in when Render prompts.
+      - key: DATABASE_URL
+        sync: false
+      # Vercel URL(s) allowed to call this API. Comma-separated, no trailing
+      # slash, e.g. https://mini-kanban-board.vercel.app
+      - key: FRONTEND_URL
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_EXPIRES_IN
+        value: 7d

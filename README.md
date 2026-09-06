@@ -117,6 +117,13 @@ NEXT_PUBLIC_API_URL="http://localhost:4000"
 > major versions of NestJS/Next/Prisma whose peer dependency ranges npm's
 > resolver is sometimes stricter about than necessary; it's safe here.
 
+## Deploy for free
+
+Neon (Postgres) + Render (API) + Vercel (web app) - three free tiers, no card
+required. `render.yaml` in the repo root configures the API service; see
+[DEPLOYMENT.md](DEPLOYMENT.md) for the step-by-step walkthrough and the
+trade-offs that come with the free plans.
+
 ## Tests
 
 ```bash
