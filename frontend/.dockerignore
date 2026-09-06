@@ -1,0 +1,15 @@
+# Host build output must never reach the image: `COPY . .` would drop
+# Windows-compiled native binaries (@next/swc-win32-*, lightningcss-win32-*)
+# and a stale .next on top of the Linux install done inside the container.
+node_modules
+.next
+*.tsbuildinfo
+
+# Secrets stay out of image layers - NEXT_PUBLIC_API_URL comes in as a
+# build arg from docker-compose instead.
+.env
+.env.*
+!.env.example
+
+npm-debug.log*
+*.log

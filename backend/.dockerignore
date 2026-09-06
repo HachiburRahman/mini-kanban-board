@@ -1,0 +1,16 @@
+# Host build output must never reach the image: `COPY . .` would drop
+# Windows-compiled native bindings (bcrypt, Prisma engines) on top of the
+# Linux ones installed inside the container, and the API would die at startup
+# with "Exec format error".
+node_modules
+dist
+*.tsbuildinfo
+
+# Secrets stay out of image layers - the container gets its config from
+# docker-compose `environment:` instead.
+.env
+.env.*
+!.env.example
+
+npm-debug.log*
+*.log
